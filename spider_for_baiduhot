@@ -1,0 +1,67 @@
+from urllib import request
+from lxml import etree
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+url = 'http://top.baidu.com/category?c=513&fr=topindex'
+headers = {
+'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'
+}
+
+#爬器页面内容
+def spider(url_path):
+    data_html = ''
+    res = request.Request(url=url_path, headers=headers)
+
+    with request.urlopen(res) as uf:
+        while True:
+            data_temp = uf.read(1024)
+            if not data_temp:
+                break
+            data_html +=data_temp.decode('gbk','ignore')
+
+    return data_html
+
+
+# 输出页面字符串到本地文件
+def output(html_data,file_path):
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    f = None
+
+    f = open(file_path, mode='w+', encoding='gbk')
+    f.write(html_data)
+
+
+    if not f:
+        f.close()
+
+#使用xpath解析数据
+def parse(html_data):
+    html_obj = etree.HTML(html_data)
+    last_html_data = etree.tostring(html_obj)
+    html_obj = etree.HTML(last_html_data)
+    hot_class = html_obj.xpath('//div[@class="box-cont"]//h2/a/text()')
+    for index in range(len(hot_class)):
+        print('######',hot_class[index],'######')
+        parse_str = '//div[@class="box-cont"]['+str(index + 1)+']/div[@class="bd"]//ul[@class="item-list"]//div[@class="item-hd"]/a/@title'
+        parse_data = html_obj.xpath(parse_str)
+        for i in parse_data:
+            print(i)
+
+
+if __name__ == '__main__':
+    #创建一个16线程大小的线程池
+    executor = ThreadPoolExecutor(max_workers=16)
+    #执行一个爬取任务
+    task = [executor.submit(spider, url)]
+    #等待请求结束
+    for future in as_completed(task):
+        #获取页面内容
+        page_data = future.result()
+        if page_data:
+            #输出到本地文件做简单分析
+            output(page_data,'text_baidu.html')
+            #执行xpath分析
+            parse(page_data)
+    print('爬取结束')
